@@ -228,7 +228,7 @@ pblk_t e2_inode_to_pblk (ctxt_t c, inum_t i)
 	int ipg=c->sb.s_inodes_per_group;
 	pblk_t bn=-1;
 	int inodeSize=sizeof(struct ext2_inode);
-	pblk_t bmInode=c->gd[i/ipg].bg_inode_bitmap;
+//	pblk_t bmInode=c->gd[i/ipg].bg_inode_bitmap;
 	if(i<ipg*c->ngroups)
 	{
 		pblk_t inodeBlock=c->gd[i/ipg].bg_inode_table;
@@ -255,26 +255,43 @@ pblk_t e2_inode_lblk_to_pblk (ctxt_t c, struct ext2_inode *in, lblk_t blkno)
 	int sizeAddrBlock=sizeof(pblk_t);
 	int sizeBlock=e2_ctxt_blksize(c);
 	int nbAddrPerBlock=sizeBlock/sizeAddrBlock;
+	int k,q,r;
 	int i=12;
+	pblk_t *p;
 	buf_t b;
 	if(blkno<=i)
-		return i_block[blkno];
+		return in->i_block[blkno];
 	else if (blkno<(i+=nbAddrPerBlock))
 	{
 		//chercher l'adresse dans le bloc de premiere indirection
-		b=e2_buffer_get(c,i_block[13]);
-		pblk_t *p=(pblk_t *) b;
+		b=e2_buffer_get(c,in->i_block[13]);
+		p=(pblk_t *) b;
 		return p[blkno-12];
 	}
 	else if (blkno<(i+=nbAddrPerBlock*nbAddrPerBlock))
 	{
 		//chercher l'adresse dans le block de deuxieme indirection
-		int k=(pblkno-12)/nbAddrPerBlock;
-		b=e2_buffer_get(c,i_block[14]);
+		q=(blkno-12)/nbAddrPerBlock;
+		r=(blkno-12)%nbAddrPerBlock;
+		b=e2_buffer_get(c,in->i_block[14]);
+		p=(pblk_t *) b;	
+		b=e2_buffer_get(c,p[q]);
+		p=(pblk_t *) b;	
+		return p[r];
 	}
 	else
 	{
 		//cherche lycos cherche
+		k=(blkno-12)/(nbAddrPerBlock*nbAddrPerBlock);
+		q=(blkno-12)/nbAddrPerBlock;
+		r=(blkno-12)%nbAddrPerBlock;
+		b=e2_buffer_get(c,in->i_block[15]);
+		p=(pblk_t *) b;	
+		b=e2_buffer_get(c,p[k]);
+		p=(pblk_t *) b;	
+		b=e2_buffer_get(c,p[q]);
+		p=(pblk_t *) b;	
+		return p[r];
 	}
 }
 
