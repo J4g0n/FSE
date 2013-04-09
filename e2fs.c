@@ -228,11 +228,10 @@ pblk_t e2_inode_to_pblk (ctxt_t c, inum_t i)
 	int ipg=c->sb.s_inodes_per_group;
 	pblk_t bn=-1;
 	int inodeSize=sizeof(struct ext2_inode);
-//	pblk_t bmInode=c->gd[i/ipg].bg_inode_bitmap;
 	if(i<ipg*c->ngroups)
 	{
 		pblk_t inodeBlock=c->gd[i/ipg].bg_inode_table;
-		bn=inodeBlock+(i*inodeSize)/e2_ctxt_blksize(c);
+		bn=inodeBlock+i/(e2_ctxt_blksize(c)/inodeSize);
 	}
 	return bn;
 }
@@ -240,12 +239,14 @@ pblk_t e2_inode_to_pblk (ctxt_t c, inum_t i)
 /* extrait l'inode du buffer */
 struct ext2_inode *e2_inode_read (ctxt_t c, inum_t i, buf_t b)
 {
-	i%=c->sb.s_inodes_per_group;
-	struct ext2_inode *e2in=(struct ext2_inode *) malloc(sizeof(struct ext2_inode));
 	int inodeSize=sizeof(struct ext2_inode);
-	int offset=i*inodeSize;
-	void *p=b+offset;	
-	memcpy(p,(void *) e2in, inodeSize);
+	int inodesPerBlock=e2_ctxt_blksize(c)/inodeSize;
+	i%=inodesPerBlock;
+	struct ext2_inode *e2in=(struct ext2_inode *) malloc(inodeSize);
+	int offset=i*(inodeSize);
+	void *p=b->data+offset;	
+	printf("%p\n",p-b->data);
+	memcpy((void *) e2in, p, inodeSize);
 	return e2in;
 }
 
