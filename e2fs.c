@@ -121,12 +121,14 @@ void e2_ctxt_close (ctxt_t c)
 		if(c->gd!=NULL) free(c->gd);
 		if((bfSent=c->last)!=NULL)
 		{
-			while((bfCur=bfSent->next)!=NULL)
+			while((bfCur=bfSent->next)!=c->last)
 			{
 				if(bfSent->data!=NULL) free(bfSent->data);
 				free(bfSent);
 				bfSent=bfCur;			
 			}
+			if(c->last->data!=NULL) free(c->last->data);
+			free(c->last);
 		}
 		free(c);
 	}
@@ -245,7 +247,6 @@ struct ext2_inode *e2_inode_read (ctxt_t c, inum_t i, buf_t b)
 	struct ext2_inode *e2in=(struct ext2_inode *) malloc(inodeSize);
 	int offset=i*(inodeSize);
 	void *p=b->data+offset;	
-	printf("%p\n",p-b->data);
 	memcpy((void *) e2in, p, inodeSize);
 	return e2in;
 }
@@ -301,8 +302,44 @@ pblk_t e2_inode_lblk_to_pblk (ctxt_t c, struct ext2_inode *in, lblk_t blkno)
  */
 
 /* affiche les blocs d'un fichier */
-int e2_cat (ctxt_t c, inum_t i, int disp_pblk)
+int e2_cat (ctxt_t c, inum_t in, int disp_pblk)
 {
+	pblk_t bNum;
+	buf_t buffer;
+	struct ext2_inode *e2in;
+	int size,nbBlocks,i;
+
+	if((bNum=e2_inode_to_pblk(c,in))<0) 
+	{
+		fprintf(stderr,"Erreur aucun fichier pour cet inode\n");
+		exit(EXIT_FAILURE);
+	}
+	buffer=e2_buffer_get(c,bNum);
+	e2in=e2_inode_read(c,in,buffer);
+	e2_buffer_put(c,buffer);
+	size=e2in->i_size;
+	nbBlocks=((e2in->i_size)/(e2_ctxt_blksize(c)))+1;
+
+	if(disp_pblk==0)
+	{
+		for(i=0;i<nbBlocks;i++)
+		{
+			bNum=e2_inode_lblk_to_pblk(c,e2in,i);
+			buffer=e2_buffer_get(c,bNum);
+			printf("%s\n",(char *) buffer->data);
+			e2_buffer_put(c,buffer);
+		}
+	}
+	else
+	{
+		printf("Size: %d\n",size);
+		for(i=0;i<nbBlocks;i++)
+		{
+			bNum=e2_inode_lblk_to_pblk(c,e2in,i);
+			printf("Bloc N°%d: %d\n",i,bNum);
+		}
+	}
+	return 0;
 }
 
 /******************************************************************************
