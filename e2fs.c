@@ -244,10 +244,9 @@ struct ext2_inode *e2_inode_read (ctxt_t c, inum_t i, buf_t b)
 	int inodeSize=sizeof(struct ext2_inode);
 	int inodesPerBlock=e2_ctxt_blksize(c)/inodeSize;
 	i%=inodesPerBlock;
-	struct ext2_inode *e2in=(struct ext2_inode *) malloc(inodeSize);
+	struct ext2_inode *e2in;
 	int offset=i*(inodeSize);
-	void *p=b->data+offset;	
-	memcpy((void *) e2in, p, inodeSize);
+	e2in=(struct ext2_inode *) (b->data+offset);	
 	return e2in;
 }
 
@@ -348,20 +347,107 @@ int e2_cat (ctxt_t c, inum_t in, int disp_pblk)
 
 file_t e2_file_open (ctxt_t c, inum_t i)
 {
+	int bNum;
+	if((bNum=e2_inode_to_pblk(c,i))<0) 
+	{
+		fprintf(stderr,"Numero de bloc invalide\n");
+		return NULL;
+	}
+	
+	file_t f=(file_t) malloc(sizeof(struct ofile));
+	buf_t b=e2_buffer_get(c,bNum);
+	struct ext2_inode *e2in=e2_inode_read(c,i,b);
+	buf_t bData=e2_buffer_get(c,e2in->i_block[0]);
+
+	f->ctxt=c;
+	f->buffer=b;
+	f->inode=e2in;
+	f->curblk=0;
+	f->data=(char *) calloc(e2_ctxt_blksize(c),sizeof(char));
+	memcpy((void *) f->data,bData->data,e2_ctxt_blksize(c));
+	if(e2in->i_size<e2_ctxt_blksize(c)) f->len=e2in->i_size;
+	else f->len=e2_ctxt_blksize(c);
+	f->pos=0;
+
+	return f;
 }
 
-void e2_file_close (file_t of)
+void e2_file_close (file_t f)
 {
+	buf_t b=e2_buffer_get(f->ctxt,e2_inode_lblk_to_pblk(f->ctxt,f->inode,f->curblk));
+	free(b->data);
+	b->data=f->data;
+	e2_buffer_put(f->ctxt,b);
+	e2_buffer_put(f->ctxt,f->buffer);
+	free(f);
 }
 
 /* renvoie EOF ou un caractere valide */
-int e2_file_getc (file_t of)
+int e2_file_getc (file_t f)
 {
+	buf_t bOld,bNew;
+	char retChar=f->data[f->pos];
+	if(++f->pos>f->len) return EOF;
+	if(f->pos>=e2_ctxt_blksize(f->ctxt)) 
+	{
+		bOld=e2_buffer_get(f->ctxt,e2_inode_lblk_to_pblk(f->ctxt,f->inode,f->curblk));
+		bNew=e2_buffer_get(f->ctxt,e2_inode_lblk_to_pblk(f->ctxt,f->inode,++f->curblk));
+		free(bOld->data);
+		bOld->data=f->data;
+		e2_buffer_put(f->ctxt,bOld);
+		f->data=(char *) calloc(e2_ctxt_blksize(f->ctxt),sizeof(char));
+		memcpy((void *) f->data,bNew->data,e2_ctxt_blksize(f->ctxt));
+		e2_buffer_put(f->ctxt,bNew);
+		if((f->len=f->inode->i_size-f->curblk*e2_ctxt_blksize(f->ctxt))>=e2_ctxt_blksize(f->ctxt))
+			f->len=e2_ctxt_blksize(f->ctxt);
+		f->pos=0;
+		retChar=f->data[f->pos++];
+	}
+	return retChar;
 }
 
 /* renvoie nb de caracteres lus (0 lorsqu'on arrive en fin de fichier) */
-int e2_file_read (file_t of, void *data, int len)
+int e2_file_read (file_t f, void *data, int len)
 {
+	buf_t bOld,bNew;
+	int blkSize=e2_ctxt_blksize(f->ctxt);
+	int lenCur=len;
+	void *pData=data;
+	if(lenCur+f->pos<blkSize)
+	{
+		memcpy(pData,f->data+f->pos,lenCur);
+		f->pos+=lenCur;
+	}
+	else
+	{
+		memcpy(pData,f->data+f->pos,blkSize-f->pos);
+		lenCur-=blkSize-f->pos;
+		pData+=lenCur;
+		while(lenCur>0)
+		{
+			bOld=e2_buffer_get(f->ctxt,e2_inode_lblk_to_pblk(f->ctxt,f->inode,f->curblk));
+			bNew=e2_buffer_get(f->ctxt,e2_inode_lblk_to_pblk(f->ctxt,f->inode,++f->curblk));
+			free(bOld->data);
+			bOld->data=f->data;
+			e2_buffer_put(f->ctxt,bOld);
+			f->data=(char *) calloc(blkSize,sizeof(char));
+			memcpy((void *) f->data,bNew->data,blkSize);
+			e2_buffer_put(f->ctxt,bNew);
+
+			if(lenCur>blkSize)
+			{
+				f->pos=0;
+				memcpy(pData,f->data,blkSize);
+				pData-=blkSize;
+			}
+			else
+			{
+				memcpy(pData,f->data,lenCur);
+				f->pos=lenCur;
+				break;
+			}
+		}
+	}
 }
 
 /******************************************************************************
@@ -369,8 +455,34 @@ int e2_file_read (file_t of, void *data, int len)
  */
 
 /* retourne une entree de repertoire */
-struct ext2_dir_entry_2 *e2_dir_get (file_t of)
+struct ext2_dir_entry_2 *e2_dir_get (file_t f)
 {
+	unsigned char c;
+	int i=0;
+	struct ext2_dir_entry_2 *e2de=(struct ext2_dir_entry_2 *)	malloc(sizeof(struct ext2_dir_entry_2));
+	unsigned char *p=e2de;
+
+	do
+	{
+		if((c=e2_file_getc(f))==EOF) return NULL;
+		p[i]=c;
+		printf("%x ",p[i]);
+		i++;
+		//printf("%d ",f->pos);
+	}
+	while(i<8);
+
+	do
+	{
+		if((c=e2_file_getc(f))==EOF) return NULL;
+		p[i]=c;
+		printf("%x ",p[i]);
+		i++;
+		//printf("%d\t ",f->pos);
+	}
+	while(i<e2de->rec_len);
+
+	return e2de;	
 }
 
 /* recherche un composant de chemin dans un repertoire */
@@ -383,8 +495,30 @@ inum_t e2_dir_lookup (ctxt_t c, inum_t i, char *str, int len)
  */
 
 /* affiche un repertoire donne par son inode */
-int e2_ls (ctxt_t c, inum_t i)
+int e2_ls (ctxt_t c, inum_t in)
 {
+	file_t f;
+	int i=0;
+	struct ext2_dir_entry_2 *e2de;
+
+	if((f=e2_file_open(c,in))==NULL)
+	{
+		fprintf(stderr,"impossible d'ouvrir le fichier\n");
+		exit(EXIT_FAILURE);
+	}
+
+	while(((e2de=e2_dir_get(f))!=NULL)&&(e2de->rec_len<263))
+	{
+		printf("\n%d",e2de->inode);
+		printf("\t%d",e2de->rec_len);
+		printf("\t%d",e2de->name_len);
+		printf("\t%d",e2de->file_type);
+		printf("\n%s\n",&e2de->name);
+	}
+
+	e2_file_close(f);
+
+	return 0;
 }
 
 /******************************************************************************

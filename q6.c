@@ -9,24 +9,26 @@
 
 int main (int argc, char *argv [])
 {
-    ctxt_t c ;
+	ctxt_t c ;
+	file_t f;
+	inum_t in=atoi(argv[2])-1;
 
-    if (argc != 3)
-    {
-	fprintf (stderr, "usage: %s fs inode\n", argv [0]) ;
-	exit (1) ;
-    }
+	if (argc != 3)
+	{
+		fprintf (stderr, "usage: %s fs inode\n", argv [0]) ;
+		exit (1) ;
+	}
 
-    c = e2_ctxt_init (argv [1], MAXBUF) ;
-    if (c == NULL)
-    {
-	perror ("e2_ctxt_init") ;
-	exit (1) ;
-    }
+	c = e2_ctxt_init (argv [1], MAXBUF) ;
+	if (c == NULL)
+	{
+		perror ("e2_ctxt_init") ;
+		exit (1) ;
+	}
 
-    /* A REDIGER */
+	e2_ls(c,in);
 
-    e2_ctxt_close (c) ;
+	e2_ctxt_close (c) ;
 
-    exit (0) ;
+	exit (0) ;
 }

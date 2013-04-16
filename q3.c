@@ -12,12 +12,12 @@
 
 int main (int argc, char *argv [])
 {
+	int j;
 	ctxt_t c ;
-	inum_t i=atoi(argv[2]);
+	inum_t i=atoi(argv[2])-1;
 	pblk_t bNum;
 	buf_t b;
 	struct ext2_inode *e2in;
-	int j;
 
 	if (argc != 3)
 	{
@@ -32,25 +32,23 @@ int main (int argc, char *argv [])
 		exit (1) ;
 	}
 
-	bNum=e2_inode_to_pblk(c,i);
-	printf("%d,%d\n",i,bNum);
+	if((bNum=e2_inode_to_pblk(c,i))<0) 
+	{
+		fprintf(stderr,"Numero d'erreur invalide\n");
+		exit(EXIT_FAILURE);
+	}
+
 	b=e2_buffer_get(c,bNum);
-/*	for(j=0;j<1024;j++) 
-	{ 
-		printf("%3x ",(unsigned char *) b->data[j]); 
-		if((j!=0)&&(j%16==0))	printf("\n");
-	}*/
 	e2in=e2_inode_read(c,i,b);
-	printf("%s\n",(char *) e2in);
 	printf("%d:size\n",e2in->i_size);
-	printf("%d:nbBlocks\n",e2in->i_blocks);
-	printf("%d:idBlock1\n",e2in->i_block[0]);
-/*	q=(unsigned char *) e2in;
-	for(j=0;j<256;j++) 
-	{ 
-		printf("%3x ",q[j]); 
-		if((j%16==0)&&(j!=0))	printf("\n");
-	}*/
+	for(j=0;j<e2in->i_blocks;j++)
+	{
+		bNum=e2_inode_lblk_to_pblk(c,e2in,j);
+		if(bNum!=0)
+			printf("%d:nbBlocks\n",bNum);
+		else break;
+	}
+	e2_buffer_put(c,b);
 
 	e2_ctxt_close (c) ;
 
