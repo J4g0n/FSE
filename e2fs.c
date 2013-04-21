@@ -460,34 +460,74 @@ struct ext2_dir_entry_2 *e2_dir_get (file_t f)
 	unsigned char c;
 	int i=0;
 	struct ext2_dir_entry_2 *e2de=(struct ext2_dir_entry_2 *)	malloc(sizeof(struct ext2_dir_entry_2));
-	unsigned char *p=e2de;
+	unsigned char *p=(unsigned char *) e2de;
 
 	do
 	{
 		if((c=e2_file_getc(f))==EOF) return NULL;
 		p[i]=c;
-		printf("%x ",p[i]);
+		//printf("%x ",p[i]);
 		i++;
-		//printf("%d ",f->pos);
 	}
 	while(i<8);
 
-	do
+	if(e2de->rec_len<263)
 	{
-		if((c=e2_file_getc(f))==EOF) return NULL;
-		p[i]=c;
-		printf("%x ",p[i]);
-		i++;
-		//printf("%d\t ",f->pos);
+		do
+		{
+			if((c=e2_file_getc(f))==EOF) return NULL;
+			p[i]=c;
+			//printf("%x ",p[i]);
+			i++;
+		}
+		while(i<e2de->rec_len);
 	}
-	while(i<e2de->rec_len);
+	else 
+	{
+		do
+		{
+			if((c=e2_file_getc(f))==EOF) return NULL;
+			p[i]=c;
+			//printf("%x ",p[i]);
+			i++;
+		}
+		while(c!=0);
+	}
 
 	return e2de;	
 }
 
 /* recherche un composant de chemin dans un repertoire */
-inum_t e2_dir_lookup (ctxt_t c, inum_t i, char *str, int len)
+inum_t e2_dir_lookup (ctxt_t c, inum_t in, char *str, int len)
 {
+	file_t f;
+	struct ext2_dir_entry_2 *e2de;
+
+	if((f=e2_file_open(c,in))==NULL)
+	{
+		fprintf(stderr,"impossible d'ouvrir le fichier\n");
+		exit(EXIT_FAILURE);
+	}
+
+	// traiter le cas où f n'est pas un répertoire : pour cela accéder à
+	// f->inode->??? 
+	if(2==2)
+	{
+		do
+		{
+			e2de=e2_dir_get(f);
+			if(strncmp(str,&e2de->name,len)==0) 
+			{
+				e2_file_close(f);
+				return e2de->inode;
+			}
+		}
+		while((e2de!=NULL)&&(e2de->rec_len<263));
+	}
+
+	e2_file_close(f);
+
+	return 0;
 }
 
 /******************************************************************************
@@ -498,7 +538,6 @@ inum_t e2_dir_lookup (ctxt_t c, inum_t i, char *str, int len)
 int e2_ls (ctxt_t c, inum_t in)
 {
 	file_t f;
-	int i=0;
 	struct ext2_dir_entry_2 *e2de;
 
 	if((f=e2_file_open(c,in))==NULL)
@@ -507,14 +546,16 @@ int e2_ls (ctxt_t c, inum_t in)
 		exit(EXIT_FAILURE);
 	}
 
-	while(((e2de=e2_dir_get(f))!=NULL)&&(e2de->rec_len<263))
+	do
 	{
+		e2de=e2_dir_get(f);
 		printf("\n%d",e2de->inode);
 		printf("\t%d",e2de->rec_len);
 		printf("\t%d",e2de->name_len);
 		printf("\t%d",e2de->file_type);
-		printf("\n%s\n",&e2de->name);
+		printf("\t%s\n",&e2de->name);
 	}
+	while((e2de!=NULL)&&(e2de->rec_len<263));
 
 	e2_file_close(f);
 
@@ -528,4 +569,37 @@ int e2_ls (ctxt_t c, inum_t in)
 /* recherche le fichier (l'inode) par son nom */
 inum_t e2_namei (ctxt_t c, char *path)
 {
+	inum_t in=1;
+	char *strtmp;
+	strtmp=strtok(path,"/");	
+	in=e2_dir_lookup(c,1,strtmp,strlen(strtmp));
+	if((in>0)) 
+	{
+		if(0==1) return in;
+		else printf("%d\n",in);
+	}
+	else 
+	{
+		fprintf(stderr,"Ce fichier n'existe pas\n");
+		exit(EXIT_FAILURE);
+	}
+
+	do
+	{	
+		strtmp=strtok(NULL,"/");
+		in=e2_dir_lookup(c,in-1,strtmp,strlen(strtmp));
+		if((in>0)) 
+		{
+			printf("%d\n",in);
+			if(0==1) return in;
+		}
+		else 
+		{
+			fprintf(stderr,"Ce fichier n'existe pas\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	while(strtmp!=NULL); 
+
+	return in;
 }
