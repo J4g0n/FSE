@@ -544,6 +544,12 @@ int e2_ls (ctxt_t c, inum_t in)
 		exit(EXIT_FAILURE);
 	}
 
+	if((f->inode->i_mode&0x4000)!=0x4000)
+	{
+		fprintf(stderr,"Ceci n'est pas un répertoire!!\n");
+		exit(EXIT_FAILURE);
+	}
+
 	do
 	{
 		e2de=e2_dir_get(f);

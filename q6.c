@@ -9,14 +9,14 @@
 
 int main (int argc, char *argv [])
 {
-	ctxt_t c ;
-	inum_t in=atoi(argv[2])-1;
-
 	if (argc != 3)
 	{
 		fprintf (stderr, "usage: %s fs inode\n", argv [0]) ;
 		exit (1) ;
 	}
+
+	ctxt_t c ;
+	inum_t in=atoi(argv[2])-1;
 
 	c = e2_ctxt_init (argv [1], MAXBUF) ;
 	if (c == NULL)

@@ -19,7 +19,6 @@ int main (int argc, char *argv [])
 
 	ctxt_t c ;
 	char *path=argv[2];
-	inum_t in;
 
 	c = e2_ctxt_init (argv [1], MAXBUF) ;
 	if (c == NULL)
@@ -28,7 +27,7 @@ int main (int argc, char *argv [])
 		exit (1) ;
 	}
 
-	in=e2_namei(c,path);
+	e2_namei(c,path);
 
 	e2_ctxt_close (c) ;
 

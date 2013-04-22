@@ -12,18 +12,18 @@
 
 int main (int argc, char *argv [])
 {
+	if (argc != 3)
+	{
+		fprintf (stderr, "usage: %s fs inode\n", argv [0]) ;
+		exit (1) ;
+	}
+
 	int j;
 	ctxt_t c ;
 	inum_t i=atoi(argv[2])-1;
 	pblk_t bNum;
 	buf_t b;
 	struct ext2_inode *e2in;
-
-	if (argc != 3)
-	{
-		fprintf (stderr, "usage: %s fs inode\n", argv [0]) ;
-		exit (1) ;
-	}
 
 	c = e2_ctxt_init (argv [1], MAXBUF) ;
 	if (c == NULL)
@@ -45,7 +45,7 @@ int main (int argc, char *argv [])
 	{
 		bNum=e2_inode_lblk_to_pblk(c,e2in,j);
 		if(bNum!=0)
-			printf("%d:nbBlocks\n",bNum);
+			printf("%d:bloc %d\n",bNum,j);
 		else break;
 	}
 	e2_buffer_put(c,b);
