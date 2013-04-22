@@ -127,8 +127,8 @@ void e2_ctxt_close (ctxt_t c)
 				free(bfSent);
 				bfSent=bfCur;			
 			}
-			if(c->last->data!=NULL) free(c->last->data);
-			free(c->last);
+			//if(c->last->data!=NULL) free(c->last->data);
+			//free(c->last);
 		}
 		free(c);
 	}
@@ -168,44 +168,39 @@ int e2_block_fetch (ctxt_t c, pblk_t blkno, void *data)
 
 buf_t e2_buffer_get (ctxt_t c, pblk_t blkno)
 {
-	buf_t bf=NULL;
+	buf_t bf=c->last;
 	buf_t bfSent;
-	if(c!=NULL)
+	c->bufstat_read++;
+
+	do
 	{
-		c->bufstat_read++;
-		bf=c->last;
-		do
-		{
-			bfSent=bf;
-			bf=bf->next;
-		}
-		while(bf!=c->last&&bf->blkno!=blkno) ;
-		if(bf->blkno!=blkno)
-		{
-			bf=(buf_t) malloc(sizeof(struct buffer));
-			bf->data=(void *) malloc(e2_ctxt_blksize(c));
-			bf->valid=1;
-			e2_block_fetch(c,blkno,bf->data);
-		}
-		else
-		{
-			bfSent->next=bf->next;			
-			c->bufstat_cached++;
-		}
+		bfSent=bf;
+		bf=bf->next;
+		if(bf->blkno==blkno&&bf->valid==1) break;
 	}
+	while(bf!=c->last) ;
+	if(bf->blkno!=blkno)
+	{
+		bfSent->next=bf->next;
+		c->last=bfSent;
+		bf->valid=1;
+		bf->blkno=blkno;
+		e2_block_fetch(c,blkno,bf->data);
+	}
+	else
+	{
+		bfSent->next=bf->next;			
+		c->bufstat_cached++;
+	}
+	
 	return bf;
 }
         
 /* replace le buffer en premier dans la liste */
 void e2_buffer_put (ctxt_t c, buf_t b)
 {
-	if(c!=NULL&&b!=NULL)
-	{
-		buf_t bf=c->last;
-		b->next=bf->next;
-		bf->next=b;
-		c->last=b;
-	}
+	b->next=c->last->next;
+	c->last->next=b;
 }
         
 /* recupere les donnees du buffer */
