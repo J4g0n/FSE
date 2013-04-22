@@ -12,7 +12,6 @@ int main (int argc, char *argv [])
 	ctxt_t c ;
 	inum_t in=atoi(argv[2])-1;
 	file_t f;
-	char car;
 
 	if (argc != 3)
 	{

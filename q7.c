@@ -29,7 +29,6 @@ int main (int argc, char *argv [])
 	}
 
 	in=e2_namei(c,path);
-	printf("%d\n",in);
 
 	e2_ctxt_close (c) ;
 

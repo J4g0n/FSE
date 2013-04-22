@@ -10,7 +10,6 @@
 int main (int argc, char *argv [])
 {
 	ctxt_t c ;
-	file_t f;
 	inum_t in=atoi(argv[2])-1;
 
 	if (argc != 3)

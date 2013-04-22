@@ -413,6 +413,7 @@ int e2_file_read (file_t f, void *data, int len)
 	int blkSize=e2_ctxt_blksize(f->ctxt);
 	int lenCur=len;
 	void *pData=data;
+
 	if(lenCur+f->pos<blkSize)
 	{
 		memcpy(pData,f->data+f->pos,lenCur);
@@ -448,6 +449,8 @@ int e2_file_read (file_t f, void *data, int len)
 			}
 		}
 	}
+
+	return 0;
 }
 
 /******************************************************************************
@@ -466,7 +469,6 @@ struct ext2_dir_entry_2 *e2_dir_get (file_t f)
 	{
 		if((c=e2_file_getc(f))==EOF) return NULL;
 		p[i]=c;
-		//printf("%x ",p[i]);
 		i++;
 	}
 	while(i<8);
@@ -477,7 +479,6 @@ struct ext2_dir_entry_2 *e2_dir_get (file_t f)
 		{
 			if((c=e2_file_getc(f))==EOF) return NULL;
 			p[i]=c;
-			//printf("%x ",p[i]);
 			i++;
 		}
 		while(i<e2de->rec_len);
@@ -488,7 +489,6 @@ struct ext2_dir_entry_2 *e2_dir_get (file_t f)
 		{
 			if((c=e2_file_getc(f))==EOF) return NULL;
 			p[i]=c;
-			//printf("%x ",p[i]);
 			i++;
 		}
 		while(c!=0);
@@ -509,9 +509,7 @@ inum_t e2_dir_lookup (ctxt_t c, inum_t in, char *str, int len)
 		exit(EXIT_FAILURE);
 	}
 
-	// traiter le cas où f n'est pas un répertoire : pour cela accéder à
-	// f->inode->??? 
-	if(2==2)
+	if((f->inode->i_mode&0x4000)==0x4000)
 	{
 		do
 		{
@@ -575,31 +573,29 @@ inum_t e2_namei (ctxt_t c, char *path)
 	in=e2_dir_lookup(c,1,strtmp,strlen(strtmp));
 	if((in>0)) 
 	{
-		if(0==1) return in;
-		else printf("%d\n",in);
+		printf("%s: %d\n",strtmp,in);
 	}
 	else 
 	{
 		fprintf(stderr,"Ce fichier n'existe pas\n");
-		exit(EXIT_FAILURE);
 	}
 
 	do
 	{	
 		strtmp=strtok(NULL,"/");
+		if(strtmp==NULL) break;
 		in=e2_dir_lookup(c,in-1,strtmp,strlen(strtmp));
 		if((in>0)) 
 		{
-			printf("%d\n",in);
-			if(0==1) return in;
+			printf("%s: %d\n",strtmp,in);
 		}
 		else 
 		{
 			fprintf(stderr,"Ce fichier n'existe pas\n");
-			exit(EXIT_FAILURE);
+			break;
 		}
 	}
-	while(strtmp!=NULL); 
+	while(1); 
 
 	return in;
 }
